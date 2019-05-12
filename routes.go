@@ -12,17 +12,19 @@ type Route struct {
 }
 type Routes []Route
 
+var store = newInMemoryStore()
+
 var routes = Routes{
 	Route{
 		"SecretCreate",
 		"POST",
 		"/secret",
-		SecretCreate,
+		SecretCreate(store),
 	},
 	Route{
 		"SecretGet",
 		"GET",
-		"/secret/{secret_hash}",
+		"/secret/{secretHash}",
 		SecretGet,
 	},
 }

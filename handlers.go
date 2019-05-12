@@ -2,22 +2,60 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"time"
+
+	"github.com/gorilla/mux"
 )
 
-func SecretCreate(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Welcome!")
+type secretPost struct {
+	Secret           string `json:"secret"`
+	ExpireAfterViews int    `json:"expireAfterViews"`
+	ExpireAfter      int    `json:"expireAfter"`
 }
 
-func SecretGet(w http.ResponseWriter, r *http.Request) {
-	secret := Secret{
-		SecretText: "hello",
-		SecretHash: "1231231",
-		ViewTime:   4,
-		ExpiredAt:  time.Now(),
-	}
+func respondWithError(err error, w http.ResponseWriter, code int) {
+	writeJSON(w, &JsonError{
+		Message: err.Error(),
+	}, code)
+}
 
-	json.NewEncoder(w).Encode(secret)
+func SecretCreate(store *inMemoryStore) (http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		decode := json.NewDecoder(r.Body)
+		var data secretPost
+		decode.Decode(data)
+
+		secret, error := addSecret(data.Secret, data.ExpireAfterViews, data.ExpireAfter)
+
+		if error != nil {
+			respondWithError(error, w, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusCreated)
+		error = json.NewEncoder(w).Encode(secret)
+
+		if error != nil {
+			respondWithError(error, w, http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func SecretGet(s *inMemoryStore) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		secret, error := s.readSecret(mux.Vars(r)["hash"])
+		if error != nil {
+			respondWithError(err, w, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+		error = json.NewEncoder(w).Encode(secret)
+		if error != nil {
+			respondWithError(error, w, http.StatusInternalServerError)
+			return
+		}
+	}
 }
